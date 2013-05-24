@@ -16,6 +16,7 @@ from django.utils.translation import ugettext_lazy as _
 
 # lfs imports
 import lfs.core.utils
+from lfs.customer.utils import create_unique_username
 import lfs.discounts.utils
 import lfs.order.utils
 import lfs.payment.settings
@@ -77,7 +78,7 @@ def login(request, template_name="lfs/checkout/login.html"):
 
             # Create user
             user = User.objects.create_user(
-                username=email, email=email, password=password)
+                username=create_unique_username(email), email=email, password=password)
 
             # Notify
             lfs.core.signals.customer_added.send(user)
@@ -133,7 +134,7 @@ def cart_inline(request, template_name="lfs/checkout/checkout_cart_inline.html")
     payment_costs = lfs.payment.utils.get_payment_costs(request, selected_payment_method)
 
     # Cart costs
-    cart_price = cart.get_price_gross(request) + shipping_costs["price"] + payment_costs["price"]
+    cart_price = cart.get_price_gross(request) + shipping_costs["price_gross"] + payment_costs["price"]
     cart_tax = cart.get_tax(request) + shipping_costs["tax"] + payment_costs["tax"]
 
     discounts = lfs.discounts.utils.get_valid_discounts(request)
@@ -191,7 +192,7 @@ def cart_inline(request, template_name="lfs/checkout/checkout_cart_inline.html")
         "discounts": discounts,
         "voucher_value": voucher_value,
         "voucher_tax": voucher_tax,
-        "shipping_price": shipping_costs["price"],
+        "shipping_costs": shipping_costs,
         "payment_price": payment_costs["price"],
         "selected_shipping_method": selected_shipping_method,
         "selected_payment_method": selected_payment_method,
@@ -220,8 +221,8 @@ def one_page_checkout(request, template_name="lfs/checkout/one_page_checkout.htm
 
     if request.method == "POST":
         checkout_form = OnePageCheckoutForm(data=request.POST)
-        iam = AddressManagement(invoice_address, "invoice", request.POST)
-        sam = AddressManagement(shipping_address, "shipping", request.POST)
+        iam = AddressManagement(customer, invoice_address, "invoice", request.POST)
+        sam = AddressManagement(customer, shipping_address, "shipping", request.POST)
         bank_account_form = BankAccountForm(instance=bank_account, data=request.POST)
         credit_card_form = CreditCardForm(instance=credit_card, data=request.POST)
 
@@ -242,6 +243,8 @@ def one_page_checkout(request, template_name="lfs/checkout/one_page_checkout.htm
             if request.POST.get("no_shipping", "") == "":
                 sam.save()
             else:
+                if customer.selected_shipping_address:
+                    customer.selected_shipping_address.delete()
                 shipping_address = deepcopy(customer.selected_invoice_address)
                 shipping_address.id = None
                 shipping_address.save()
@@ -273,8 +276,8 @@ def one_page_checkout(request, template_name="lfs/checkout/one_page_checkout.htm
 
     else:
         checkout_form = OnePageCheckoutForm()
-        iam = AddressManagement(invoice_address, "invoice")
-        sam = AddressManagement(shipping_address, "shipping")
+        iam = AddressManagement(customer, invoice_address, "invoice")
+        sam = AddressManagement(customer, shipping_address, "shipping")
         bank_account_form = BankAccountForm(instance=bank_account)
         credit_card_form = CreditCardForm(instance=credit_card)
 
@@ -403,7 +406,7 @@ def changed_invoice_country(request):
         address.country = Country.objects.get(code=country_iso.lower())
         address.save()
 
-    am = AddressManagement(address, "invoice")
+    am = AddressManagement(customer, address, "invoice")
     result = simplejson.dumps({
         "invoice_address": am.render(request, country_iso),
     })
@@ -423,7 +426,7 @@ def changed_shipping_country(request):
         address.country = Country.objects.get(code=country_iso.lower())
         address.save()
 
-    am = AddressManagement(address, "shipping")
+    am = AddressManagement(customer, address, "shipping")
     result = simplejson.dumps({
         "shipping_address": am.render(request, country_iso),
     })

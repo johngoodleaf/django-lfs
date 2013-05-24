@@ -13,7 +13,7 @@ from lfs.shipping.tests import *
 from lfs.voucher.tests import *
 from lfs.customer.tests import *
 from lfs.checkout.tests import *
-# from lfs.manage.tests import *
+from lfs.manage.tests import *
 from lfs.gross_price.tests import *
 from lfs.net_price.tests import *
 # from lfs.core.wmtests import *
@@ -272,7 +272,7 @@ class TagsTestCase(TestCase):
 
         # Now it works and "pageTracker" is found
         content = template.render(Context({"request": request}))
-        self.failIf(content.find("pageTracker") == -1)
+        self.failIf(content.find("_trackPageview") == -1)
 
     def test_currency(self):
         """

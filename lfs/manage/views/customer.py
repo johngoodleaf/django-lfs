@@ -121,7 +121,7 @@ def customer_inline(request, customer_id, template_name="manage/customer/custome
         selected_payment_method = lfs.payment.utils.get_selected_payment_method(request)
         payment_costs = lfs.payment.utils.get_payment_costs(request, selected_payment_method)
 
-        cart_price = cart.get_price_gross(request) + shipping_costs["price"] + payment_costs["price"]
+        cart_price = cart.get_price_gross(request) + shipping_costs["price_gross"] + payment_costs["price"]
 
     if customer.selected_shipping_address:
         shipping_address = customer.selected_shipping_address.as_html(request, "shipping")
@@ -339,14 +339,14 @@ def _get_filtered_customers(request, customer_filters):
     customer_ordering = request.session.get("customer-ordering", "id")
     customer_ordering_order = request.session.get("customer-ordering-order", "")
 
-    customers = Customer.objects.exclude(sa_object_id=None)
+    customers = Customer.objects.all()
 
     # Filter
     name = customer_filters.get("name", "")
-    #if name != "":
-    #    f = Q(sa_object_id__lastname__icontains=name)
-    #    f |= Q(sa_object_id__firstname__icontains=name)
-    #    customers = customers.filter(f)
+    if name != "":
+        f = Q(addresses__lastname__icontains=name)
+        f |= Q(addresses__firstname__icontains=name)
+        customers = customers.filter(f)
 
     # Ordering
     customers = customers.order_by("%s%s" % (customer_ordering_order, customer_ordering))
